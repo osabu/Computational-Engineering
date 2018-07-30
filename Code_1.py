@@ -2,7 +2,7 @@
 """
 Created on Sat Jul 28 15:53:05 2018
 
-@author: Haiyan
+@author: Osman & Haiyan
 """
 
 from dolfin import *
