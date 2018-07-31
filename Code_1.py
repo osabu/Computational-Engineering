@@ -1,47 +1,56 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Sat Jul 28 15:53:05 2018
+Created on Tue Jul 31 17:13:33 2018
 
-@author: Osman & Haiyan
-Last update : 30.07.18,21:37
+@author: Osman & haiyan
 """
 
-from fenics import * 
-mesh = Mesh('')
+from fenics import *
+#pwd = '/home/haiyan/Documents/Try1/'
+mesh = Mesh('Mesh_1.xml')
+xlength= 1200.0 #in mm
+ylength= 700.0
+zlength= 700.0
 V = VectorFunctionSpace(mesh , 'P' , 1)
-cells = MeshFunction('size_t' , mesh , '')
-plot(cells , interactive = True)
-facets = MeshFunction('size_t' , mesh , '')
-plot(facets , interactive = True)
+cells = MeshFunction('size_t' , mesh , 'Mesh_1_physical_region.xml')
+#plot(cells , interactive = True)
+facets = MeshFunction('size_t' , mesh , 'Mesh_1_facet_region.xml')
+#plot(facets , interactive = True)
 dA = Measure('ds' , domain=mesh , subdomain_data = facets)
 dV = Measure('dx' , domain=mesh , subdomain_data = cells)
-left = CompiledSubDomain('near(x[0], 0) && on_boundary')
-right = CompiledSubDomain('near(x[0],l) && on_boundary' , l = #####)
-tr = Constant((0.0 , 0.0 , 1000.0))  #MPa
+
+bottom = CompiledSubDomain('near(x[2],0) && on_boundary')
+top = CompiledSubDomain('pow(x[0]-X,2) +pow(x[1]-Y,2) < pow(120.0,2) && near(x[2], l) && on_boundary', X=xlength/2., Y=ylength/2., l=zlength)
+facets.set_all(0)
+top.mark(facets, 1)
+#Tracing vector
+tr = Constant(('0.0' , '0.0' , '1000.0'))  #MPa
 null = Constant((0.0 , 0.0 , 0.0 ))
-bc = [DirchletBC)(V , null , facets , )]
-du = TrialFunction(V)
+bc = [DirichletBC(V , null , bottom )]
+# definition for the variational formulation
+u = TrialFunction(V)
 del_u = TestFunction(V)
-u = Function(V)
-nu = 0.3
+
+# material parameters of strong PVC
+nu = 0.325
 E = 3000 #in MPa
 G = E / (2.0 * (1.0 + nu))
 #Lame parameters (lambda has another meaning in python)
 lambada = 2.0*G*nu / (1.0 - 2.0*nu)
-mu = G 
+mu = G
+# kronecker delta in 3D
 delta = Identity(3)
-i , j , k , l = indices(4)
-F = as_tensor(u[i].dx(j) + delta[i,j] , (i,j))
-J = det(F)
-C = as_tensor(F[i,k] *F[i,j] , (k,j))
-E = as_tensor(1./2.*(C[k,j] - delta[k,j]), (k,j))
-S = as_tensor(F[i,j] * S[j , k] , (k ,i))
-Form = P[k , i]*del_u[i].dx(k)*dV - tr[i]*del_u[i]*dA(1)
-Gain = derivative(Form , u , du)
-solve(Form == 0 , u , bc , J = Gain, \
-	solver_parameters={"newton_solver":{"linear_solver" : "lu"
-		, "relative_tolerance" : 1e-3} } ,
-	form_compiler_parameters = {"cpp_optimize" : True , "
-		representation" : "quadrature" , "quadrature_degree"
-		: 2}  )
-
+i , j , k  = indices(3)
+# Strain tensor
+eps = as_tensor(1./2.*(u[i].dx(j)+u[j].dx(i)), (i,j))
+# cauchy stress tensor
+sigma = as_tensor(lambada*eps[k,k]*delta[i,j]+2.0*mu*eps[i,j], (i,j))
+# variational form
+a = sigma[j,i]*del_u[i].dx(j)*dV
+L = tr[i]*del_u[i]*dA(1)
+disp = Function(V)
+solve(a==L, disp, bcs=bc)
+#write out
+file_ = File('/home/osmanabu/Downloads/Ass/Assignmt_1.pvd')
+file_ << disp
